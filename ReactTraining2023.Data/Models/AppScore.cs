@@ -18,5 +18,6 @@ public partial class AppScore : EntityBase
 
     //public DateTime CreatedDate { get; set; }
 
-    public decimal? TotalTime { get; set; }
+    public TimeSpan? TotalTime { get; set; }
+    
 }

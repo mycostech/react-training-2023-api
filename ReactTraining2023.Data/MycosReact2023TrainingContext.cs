@@ -50,7 +50,7 @@ public partial class MycosReact2023TrainingContext : DbContext
             entity.Property(e => e.Name).HasMaxLength(255);
             entity.Property(e => e.ProjectName).HasMaxLength(255);
             entity.Property(e => e.Score).HasColumnType("decimal(18, 0)");
-            entity.Property(e => e.TotalTime).HasColumnType("decimal(18, 0)");
+            entity.Property(e => e.TotalTime).HasColumnType("time(2)");
         });
 
         OnModelCreatingPartial(modelBuilder);

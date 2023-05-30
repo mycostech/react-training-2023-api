@@ -18,6 +18,7 @@ namespace ReactTraining2023.Services
         {
             if (newAppScore != null && newAppScore.Id == 0)
             {
+                newAppScore.CreatedDate = DateTime.Now;
                 _dbContext.AppScores.Add(newAppScore);
                 await _dbContext.SaveChangesAsync();
 
@@ -61,7 +62,7 @@ namespace ReactTraining2023.Services
                 existAppScore.ProjectName = appScore.ProjectName;
                 existAppScore.Score = appScore.Score;
                 existAppScore.Ip = appScore.Ip;
-                existAppScore.TotalTime = appScore.TotalTime;
+                existAppScore.TotalTime = DateTime.Now.TimeOfDay - existAppScore.CreatedDate.TimeOfDay;
 
                 await _dbContext.SaveChangesAsync();
 

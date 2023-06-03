@@ -4,6 +4,7 @@ using System.Data;
 using Microsoft.AspNetCore.Mvc;
 using ReactTraining2023.Data.Models;
 using ReactTraining2023.Services.Interfaces;
+using Microsoft.IdentityModel.Tokens;
 
 namespace ReactTraining2023.Controllers
 {
@@ -12,8 +13,20 @@ namespace ReactTraining2023.Controllers
     public class AppScoreController : ControllerBase
 	{
 		private readonly IAppScoreService _appScoreService;
+        private readonly string _SESSIONID = "sessionId";
+        private string _sessionIdConfigValue = "";
 
-		public AppScoreController(IAppScoreService appScoreService)
+        public string SessionIdConfigValue
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(_sessionIdConfigValue))
+                    _sessionIdConfigValue = new ConfigurationBuilder().AddJsonFile("appsettings.json").Build().GetSection("SessionId").Value;
+                return _sessionIdConfigValue;
+            }
+        }
+
+        public AppScoreController(IAppScoreService appScoreService)
 		{
 			_appScoreService = appScoreService;
         }
@@ -23,7 +36,10 @@ namespace ReactTraining2023.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetAllAppScore(string projectName)
 		{
-			if (projectName == "")
+            if (!IsMatchHeaderKey())
+                return BadRequest();
+
+            if (projectName == "")
 			{
 				return BadRequest();
 			}
@@ -38,7 +54,10 @@ namespace ReactTraining2023.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> AddAppScore([FromBody] AppScore newAppScore)
 		{
-			var result = await _appScoreService.AddScore(newAppScore);
+            if (!IsMatchHeaderKey())
+                return BadRequest();
+
+            var result = await _appScoreService.AddScore(newAppScore);
 			if (result != null)
 			{
 				return Ok(result);
@@ -52,6 +71,9 @@ namespace ReactTraining2023.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> UpdateAppScore([FromBody] AppScore updateAppScore)
         {
+            if (!IsMatchHeaderKey())
+                return BadRequest();
+
             var result = await _appScoreService.UpdateScore(updateAppScore);
             if (result != null)
             {
@@ -66,6 +88,9 @@ namespace ReactTraining2023.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> DeleteAppScore(int appScoreId)
         {
+            if (!IsMatchHeaderKey())
+                return BadRequest();
+
             if (appScoreId <= 0)
             {
                 return BadRequest("Invalid request body");
@@ -80,6 +105,17 @@ namespace ReactTraining2023.Controllers
             {
                 return BadRequest("Something went wrong");
             }
+        }
+
+        private bool IsMatchHeaderKey()
+        {
+            if (!Request.Headers.TryGetValue(_SESSIONID, out var sessionHeader))
+                return false;
+
+            if (string.IsNullOrEmpty(sessionHeader) || sessionHeader.ToString().ToLower() != SessionIdConfigValue.ToLower())
+                return false;
+
+            return true;
         }
     }
 }

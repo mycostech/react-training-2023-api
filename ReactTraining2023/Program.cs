@@ -1,9 +1,16 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
 using ReactTraining2023.Data.Models;
 using ReactTraining2023.Services;
 using ReactTraining2023.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var config = new ConfigurationBuilder()
+                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                .AddJsonFile($"appsettings.Development.json", optional: true, reloadOnChange: true)
+                .AddEnvironmentVariables()
+                .Build();
 
 // Add services to the container.
 builder.Services.AddScoped<IAppScoreService, AppScoreService>();
@@ -21,25 +28,46 @@ builder.Services.AddSwaggerGen(setup =>
     })
 );
 
+builder.Services.AddSwaggerGen(c =>
+    c.OperationFilter<AddRequiredHeaderParameter>()
+);
+
 builder.Services.AddDbContext<MycosReact2023TrainingContext>(
         options => {
             options.UseSqlServer(builder.Configuration.GetConnectionString("masterDB"));
         });
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAllOrigins",
+            builder =>
+            {
+                builder.AllowAnyOrigin()
+                       .AllowAnyHeader()
+                       .AllowAnyMethod();
+            });
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+
+app.UseSwaggerUI();
+
+app.UseCors("AllowAllOrigins");
 
 app.UseHttpsRedirection();
+
+app.UseAuthentication();
+
+app.UseRouting();
 
 app.UseAuthorization();
 
 app.MapControllers();
+
+app.UseDefaultFiles();
 
 app.Run();
 

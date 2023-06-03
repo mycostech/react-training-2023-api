@@ -20,8 +20,20 @@ namespace ReactTraining2023.Controllers
         {
             get
             {
-                if (string.IsNullOrEmpty(_sessionIdConfigValue))
-                    _sessionIdConfigValue = new ConfigurationBuilder().AddJsonFile("appsettings.json").Build().GetSection("SessionId").Value;
+                if (string.IsNullOrEmpty(_sessionIdConfigValue)) {
+                    var config = new ConfigurationBuilder()
+                                                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                                                .AddJsonFile($"appsettings.Development.json", optional: true, reloadOnChange: true)
+                                                .AddEnvironmentVariables()
+                                                .Build();
+
+                    if (config != null)
+                    {
+                        _sessionIdConfigValue = config.GetSection("SessionId").Value;
+                    }
+                                           
+                }
+                    
                 return _sessionIdConfigValue;
             }
         }
@@ -37,7 +49,7 @@ namespace ReactTraining2023.Controllers
         public async Task<IActionResult> GetAllAppScore(string projectName)
 		{
             if (!IsMatchHeaderKey())
-                return BadRequest();
+                return Unauthorized();
 
             if (projectName == "")
 			{
@@ -55,7 +67,7 @@ namespace ReactTraining2023.Controllers
         public async Task<IActionResult> AddAppScore([FromBody] AppScore newAppScore)
 		{
             if (!IsMatchHeaderKey())
-                return BadRequest();
+                return Unauthorized();
 
             var result = await _appScoreService.AddScore(newAppScore);
 			if (result != null)
@@ -72,7 +84,7 @@ namespace ReactTraining2023.Controllers
         public async Task<IActionResult> UpdateAppScore([FromBody] AppScore updateAppScore)
         {
             if (!IsMatchHeaderKey())
-                return BadRequest();
+                return Unauthorized();
 
             var result = await _appScoreService.UpdateScore(updateAppScore);
             if (result != null)
@@ -89,7 +101,7 @@ namespace ReactTraining2023.Controllers
         public async Task<IActionResult> DeleteAppScore(int appScoreId)
         {
             if (!IsMatchHeaderKey())
-                return BadRequest();
+                return Unauthorized();
 
             if (appScoreId <= 0)
             {
@@ -109,7 +121,7 @@ namespace ReactTraining2023.Controllers
 
         private bool IsMatchHeaderKey()
         {
-            if (!Request.Headers.TryGetValue(_SESSIONID, out var sessionHeader))
+            if (!Request.Headers.TryGetValue("_SESSIONID", out var sessionHeader))
                 return false;
 
             if (string.IsNullOrEmpty(sessionHeader) || sessionHeader.ToString().ToLower() != SessionIdConfigValue.ToLower())

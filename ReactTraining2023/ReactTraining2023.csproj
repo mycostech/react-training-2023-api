@@ -16,10 +16,14 @@
   <ItemGroup>
     <None Remove="Services\" />
     <None Remove="Services\Interfaces\" />
+    <None Remove="Hubs\" />
+    <None Remove="ExampleFrontend\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Services\" />
     <Folder Include="Services\Interfaces\" />
+    <Folder Include="Hubs\" />
+    <Folder Include="ExampleFrontend\" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ReactTraining2023.Data\ReactTraining2023.Data.csproj">

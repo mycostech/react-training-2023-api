@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 using ReactTraining2023.Data.Models;
 using ReactTraining2023.Services.Interfaces;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.SignalR;
+using ReactTraining2023.Hubs;
 
 namespace ReactTraining2023.Controllers
 {
@@ -15,6 +17,9 @@ namespace ReactTraining2023.Controllers
 		private readonly IAppScoreService _appScoreService;
         private readonly string _SESSIONID = "sessionId";
         private string _sessionIdConfigValue = "";
+        private readonly IHubContext<ScoreHub> _hubContext;
+
+        private readonly ILogger<AppScoreController> _logger;
 
         public string SessionIdConfigValue
         {
@@ -38,9 +43,12 @@ namespace ReactTraining2023.Controllers
             }
         }
 
-        public AppScoreController(IAppScoreService appScoreService)
+        public AppScoreController(IAppScoreService appScoreService, IHubContext<ScoreHub> hubContext, ILogger<AppScoreController> logger)
 		{
 			_appScoreService = appScoreService;
+            _hubContext = hubContext;
+
+            _logger = logger;
         }
 
         [HttpGet("GetAllAppScore")]
@@ -128,6 +136,18 @@ namespace ReactTraining2023.Controllers
                 return false;
 
             return true;
+        }
+
+        [HttpPost("UpdateScore")]
+        public async Task<IActionResult> UpdateScore([FromQuery] string team, [FromQuery] int score)
+        {
+            // Create a dictionary to represent the updated score for the specific team
+            var scores = new Dictionary<string, int> { { team, score } };
+
+            // Update the score for the given team and notify clients
+            await _hubContext.Clients.All.SendAsync("ReceiveScores", scores);
+
+            return Ok();
         }
     }
 }

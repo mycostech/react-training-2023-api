@@ -10,12 +10,19 @@ namespace ReactTraining2023.Hubs
 
         public async Task JoinApp(string appName)
         {
+             _appScores.GetOrAdd(appName, new ConcurrentDictionary<string, int>());
             await Groups.AddToGroupAsync(Context.ConnectionId, appName);
         }
 
         public async Task LeaveApp(string appName)
         {
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, appName);
+        }
+
+        public async Task GetAllAppNames()
+        {
+            var appNames = _appScores.Keys.ToList();
+            await Clients.Caller.SendAsync("ReceiveAppNames", appNames);
         }
 
         public async Task RemoveTeam(string appName, string team)

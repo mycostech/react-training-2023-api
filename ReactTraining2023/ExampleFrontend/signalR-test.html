@@ -10,6 +10,10 @@
 
     <!-- Input fields for interacting with the hub -->
     <div>
+        <select id="appDropdown"></select>
+    </div>
+
+    <div>
         <label for="appName">App Name:</label>
         <input type="text" id="appName" placeholder="Enter app name">
     </div>
@@ -22,6 +26,7 @@
         <input type="number" id="score" placeholder="Enter score">
     </div>
     <button onclick="joinApp()">Join App</button>
+    <button onclick="getAllAppNames()">Get All App Names</button>
     <button onclick="leaveApp()">Leave App</button>
     <button onclick="updateScore()">Update Score</button>
     <button onclick="getScores()">Get Scores</button>
@@ -40,9 +45,22 @@
         connection.on("ReceiveScores", (scores) => {
             const scoreboard = document.getElementById("scoreboard");
             scoreboard.innerHTML = ""; // Clear existing content
+
             for (const [team, score] of Object.entries(scores)) {
                 scoreboard.innerHTML += `<p>${team}: ${score}</p>`;
             }
+        });
+
+        connection.on("ReceiveAppNames", function (appNames) {
+            const appDropdown = document.getElementById("appDropdown");
+            appDropdown.innerHTML = ""; // Clear existing options
+
+            appNames.forEach(function (appName) {
+                const option = document.createElement("option");
+                option.value = appName;
+                option.textContent = appName;
+                appDropdown.appendChild(option);
+            });
         });
 
         // Start the connection
@@ -58,6 +76,13 @@
         function leaveApp() {
             const appName = document.getElementById("appName").value;
             connection.invoke("LeaveApp", appName).catch(err => console.error(err.toString()));
+        }
+
+        // Get all appNames in room
+        function getAllAppNames() {
+            connection.invoke("GetAllAppNames").catch(function (err) {
+                console.error("Error calling GetAllAppNames:", err.toString());
+            });
         }
 
         // Function to update a team's score

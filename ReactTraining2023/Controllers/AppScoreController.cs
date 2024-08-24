@@ -17,7 +17,9 @@ namespace ReactTraining2023.Controllers
 		private readonly IAppScoreService _appScoreService;
         private readonly string _SESSIONID = "sessionId";
         private string _sessionIdConfigValue = "";
-        private readonly IHubContext<ScoreHub> _hubContext;
+        private string _sessionSignalRConfigValue = "";
+
+        private readonly ScoreHub _scoreHub;
 
         private readonly ILogger<AppScoreController> _logger;
 
@@ -35,6 +37,7 @@ namespace ReactTraining2023.Controllers
                     if (config != null)
                     {
                         _sessionIdConfigValue = config.GetSection("SessionId").Value;
+                        _sessionSignalRConfigValue = config.GetSection("SignalRSessionId").Value;
                     }
                                            
                 }
@@ -43,10 +46,33 @@ namespace ReactTraining2023.Controllers
             }
         }
 
-        public AppScoreController(IAppScoreService appScoreService, IHubContext<ScoreHub> hubContext, ILogger<AppScoreController> logger)
+        public string SignalRSessionIdConfigValue
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(_sessionSignalRConfigValue))
+                {
+                    var config = new ConfigurationBuilder()
+                                                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                                                .AddJsonFile($"appsettings.Development.json", optional: true, reloadOnChange: true)
+                                                .AddEnvironmentVariables()
+                                                .Build();
+
+                    if (config != null)
+                    {
+                        _sessionSignalRConfigValue = config.GetSection("SignalRSessionId").Value;
+                    }
+
+                }
+
+                return _sessionSignalRConfigValue;
+            }
+        }
+
+        public AppScoreController(IAppScoreService appScoreService, ILogger<AppScoreController> logger, ScoreHub scoreHub)
 		{
 			_appScoreService = appScoreService;
-            _hubContext = hubContext;
+            _scoreHub = scoreHub;
 
             _logger = logger;
         }
@@ -138,16 +164,26 @@ namespace ReactTraining2023.Controllers
             return true;
         }
 
-        [HttpPost("UpdateScore")]
-        public async Task<IActionResult> UpdateScore([FromQuery] string team, [FromQuery] int score)
+        private bool IsMatchSignalRHeaderKey()
         {
-            // Create a dictionary to represent the updated score for the specific team
-            var scores = new Dictionary<string, int> { { team, score } };
+            if (!Request.Headers.TryGetValue("_SESSIONID", out var sessionHeader))
+                return false;
 
-            // Update the score for the given team and notify clients
-            await _hubContext.Clients.All.SendAsync("ReceiveScores", scores);
+            if (string.IsNullOrEmpty(sessionHeader) || sessionHeader.ToString().ToLower() != SignalRSessionIdConfigValue.ToLower())
+                return false;
 
-            return Ok();
+            return true;
         }
+
+        [HttpDelete("ClearScoreHub")]
+        public async Task<IActionResult> ClearScoreHub()
+        {
+            if (!IsMatchSignalRHeaderKey())
+                return Unauthorized();
+
+            _scoreHub.ClearAllScoreHub();
+            return Ok("All data in ScoreHub are cleared.");
+        }
+
     }
 }

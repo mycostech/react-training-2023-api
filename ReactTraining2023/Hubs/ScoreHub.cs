@@ -55,5 +55,10 @@ namespace ReactTraining2023.Hubs
             // Broadcast the updated scores to all connected clients
             await Clients.Group(appName).SendAsync("ReceiveScores", scores);
         }
+
+        public void ClearAllScoreHub()
+        {
+            _appScores.Clear();
+        }
     }
 }

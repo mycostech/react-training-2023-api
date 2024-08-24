@@ -18,6 +18,8 @@ var config = new ConfigurationBuilder()
 // Add services to the container.
 builder.Services.AddScoped<IAppScoreService, AppScoreService>();
 
+builder.Services.AddSingleton<ScoreHub>();
+
 builder.Services.AddControllers();
 
 builder.Services.AddSignalR(x => x.EnableDetailedErrors = true); // Add SignalR

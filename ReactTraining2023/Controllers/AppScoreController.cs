@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 using ReactTraining2023.Data.Models;
 using ReactTraining2023.Services.Interfaces;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.SignalR;
+using ReactTraining2023.Hubs;
 
 namespace ReactTraining2023.Controllers
 {
@@ -15,6 +17,11 @@ namespace ReactTraining2023.Controllers
 		private readonly IAppScoreService _appScoreService;
         private readonly string _SESSIONID = "sessionId";
         private string _sessionIdConfigValue = "";
+        private string _sessionSignalRConfigValue = "";
+
+        private readonly ScoreHub _scoreHub;
+
+        private readonly ILogger<AppScoreController> _logger;
 
         public string SessionIdConfigValue
         {
@@ -30,6 +37,7 @@ namespace ReactTraining2023.Controllers
                     if (config != null)
                     {
                         _sessionIdConfigValue = config.GetSection("SessionId").Value;
+                        _sessionSignalRConfigValue = config.GetSection("SignalRSessionId").Value;
                     }
                                            
                 }
@@ -38,9 +46,35 @@ namespace ReactTraining2023.Controllers
             }
         }
 
-        public AppScoreController(IAppScoreService appScoreService)
+        public string SignalRSessionIdConfigValue
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(_sessionSignalRConfigValue))
+                {
+                    var config = new ConfigurationBuilder()
+                                                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                                                .AddJsonFile($"appsettings.Development.json", optional: true, reloadOnChange: true)
+                                                .AddEnvironmentVariables()
+                                                .Build();
+
+                    if (config != null)
+                    {
+                        _sessionSignalRConfigValue = config.GetSection("SignalRSessionId").Value;
+                    }
+
+                }
+
+                return _sessionSignalRConfigValue;
+            }
+        }
+
+        public AppScoreController(IAppScoreService appScoreService, ILogger<AppScoreController> logger, ScoreHub scoreHub)
 		{
 			_appScoreService = appScoreService;
+            _scoreHub = scoreHub;
+
+            _logger = logger;
         }
 
         [HttpGet("GetAllAppScore")]
@@ -129,5 +163,27 @@ namespace ReactTraining2023.Controllers
 
             return true;
         }
+
+        private bool IsMatchSignalRHeaderKey()
+        {
+            if (!Request.Headers.TryGetValue("_SESSIONID", out var sessionHeader))
+                return false;
+
+            if (string.IsNullOrEmpty(sessionHeader) || sessionHeader.ToString().ToLower() != SignalRSessionIdConfigValue.ToLower())
+                return false;
+
+            return true;
+        }
+
+        [HttpDelete("ClearScoreHub")]
+        public async Task<IActionResult> ClearScoreHub()
+        {
+            if (!IsMatchSignalRHeaderKey())
+                return Unauthorized();
+
+            _scoreHub.ClearAllScoreHub();
+            return Ok("All data in ScoreHub are cleared.");
+        }
+
     }
 }

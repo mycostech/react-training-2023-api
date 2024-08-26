@@ -7,19 +7,21 @@ using ReactTraining2023.Services.Interfaces;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.SignalR;
 using ReactTraining2023.Hubs;
+using System.Collections.Concurrent;
+using ReactTraining2023.Models;
 
 namespace ReactTraining2023.Controllers
 {
     [ApiController]
     [Route("api/appscore")]
     public class AppScoreController : ControllerBase
-	{
-		private readonly IAppScoreService _appScoreService;
+    {
+        private readonly IAppScoreService _appScoreService;
         private readonly string _SESSIONID = "sessionId";
         private string _sessionIdConfigValue = "";
         private string _sessionSignalRConfigValue = "";
 
-        private readonly ScoreHub _scoreHub;
+        private readonly IHubContext<ScoreHub> _scoreHub;
 
         private readonly ILogger<AppScoreController> _logger;
 
@@ -39,9 +41,9 @@ namespace ReactTraining2023.Controllers
                         _sessionIdConfigValue = config.GetSection("SessionId").Value;
                         _sessionSignalRConfigValue = config.GetSection("SignalRSessionId").Value;
                     }
-                                           
+
                 }
-                    
+
                 return _sessionIdConfigValue;
             }
         }
@@ -69,48 +71,49 @@ namespace ReactTraining2023.Controllers
             }
         }
 
-        public AppScoreController(IAppScoreService appScoreService, ILogger<AppScoreController> logger, ScoreHub scoreHub)
-		{
-			_appScoreService = appScoreService;
+        public AppScoreController(IAppScoreService appScoreService, ILogger<AppScoreController> logger, IHubContext<ScoreHub> scoreHub)
+        {
+            _appScoreService = appScoreService;
             _scoreHub = scoreHub;
-
             _logger = logger;
         }
+
+        #region Normal endpoints
 
         [HttpGet("GetAllAppScore")]
         [ProducesResponseType(typeof(AppScore), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetAllAppScore(string projectName)
-		{
+        {
             if (!IsMatchHeaderKey())
                 return Unauthorized();
 
             if (projectName == "")
-			{
-				return BadRequest();
-			}
+            {
+                return BadRequest();
+            }
 
-			var result = await _appScoreService.GetAllScoreByProjectName(projectName);
+            var result = await _appScoreService.GetAllScoreByProjectName(projectName);
 
             return Ok(result);
-		}
+        }
 
         [HttpPost("AddAppScore")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> AddAppScore([FromBody] AppScore newAppScore)
-		{
+        {
             if (!IsMatchHeaderKey())
                 return Unauthorized();
 
             var result = await _appScoreService.AddScore(newAppScore);
-			if (result != null)
-			{
-				return Ok(result);
-			}
+            if (result != null)
+            {
+                return Ok(result);
+            }
 
-			return BadRequest("Invalid request body");
-		}
+            return BadRequest("Invalid request body");
+        }
 
         [HttpPut("UpdateAppScore")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -164,6 +167,10 @@ namespace ReactTraining2023.Controllers
             return true;
         }
 
+        #endregion
+
+        #region SignalR Endpoint
+
         private bool IsMatchSignalRHeaderKey()
         {
             if (!Request.Headers.TryGetValue("_SESSIONID", out var sessionHeader))
@@ -175,15 +182,92 @@ namespace ReactTraining2023.Controllers
             return true;
         }
 
+
+        [HttpGet("ListChannel")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ListChannel()
+        {
+            if (!IsMatchHeaderKey())
+                return Unauthorized();
+
+            var appList = ScoreHub._appScores.Keys.ToList();
+            return Ok(appList);
+        }
+
+        
+
+        [HttpGet("GetScores/{appName}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> GetScores(string appName)
+        {
+            if (!IsMatchHeaderKey())
+                return Unauthorized();
+
+            if (ScoreHub._appScores.TryGetValue(appName, out var scores))
+            {
+                // Send the current scores to the caller
+                return Ok(scores);
+            }
+
+            return BadRequest();
+        }
+
+        [HttpPost("SubmitScore")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> SubmitScore([FromBody] SignalRAppScore submitScore)
+        {
+            if (!IsMatchHeaderKey())
+                return Unauthorized();
+
+            if (submitScore != null)
+            {
+                var scores = ScoreHub._appScores.GetOrAdd(submitScore.AppName, new ConcurrentDictionary<string, int>());
+                scores[submitScore.UserName] = submitScore.Score;
+
+                // Broadcast the updated scores to all connected clients
+                await _scoreHub.Clients.Group(submitScore.AppName).SendAsync("ReceiveScores", scores);
+
+                return Ok();
+            }
+
+            return BadRequest();
+        }
+
+        [HttpDelete("RemoveUserInAppName/{appName}/{userName}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> RemoveUserInAppName(string appName, string userName)
+        {
+            if (!IsMatchSignalRHeaderKey())
+                return Unauthorized();
+
+            if (ScoreHub._appScores.TryGetValue(appName, out var scores))
+            {
+                if (scores.TryRemove(userName, out _))
+                {
+                    //await _scoreHub.Clients.Group(appName).SendAsync("SomeoneLeaveGame", userName);
+                    return Ok();
+                }
+            }
+
+            return BadRequest();
+        }
+
         [HttpDelete("ClearScoreHub")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> ClearScoreHub()
         {
             if (!IsMatchSignalRHeaderKey())
                 return Unauthorized();
 
-            _scoreHub.ClearAllScoreHub();
+            ScoreHub._appScores.Clear();
             return Ok("All data in ScoreHub are cleared.");
         }
+
+        #endregion
 
     }
 }
